@@ -1,33 +1,17 @@
 #include "CallFuncNodeLibrary.h"
 
-// no easy way to allocate temporary memory, FMemory_alloca  will delete memory after a function goes out of scope
-// so need to create the memory, track it and delete after it's used, assume this will only be called on the main thread
-static TArray<uint8*> TempAllocs;
-uint8* TemporaryMemAlloc(int32 Size)
-{
-	uint8* Mem = (uint8*)FMemory::Malloc(Size);
-	TempAllocs.Add(Mem);
-	return Mem;
-}
-
-void DeleteTempAllocs()
-{
-	for (uint8* Alloc : TempAllocs)
-	{
-		FMemory::Free(Alloc);
-	}
-
-	TempAllocs.Reset();
-}
-
 ECallFuncResult UCallFuncNodeLibrary::CallNodeFunc_Generic(UObject* Object, FName Name)
 {
-	if (Object)
+	if (Object && Object->IsValidLowLevel())
 	{
 		if (UFunction* Func = Object->FindFunction(Name))
 		{
-			Object->ProcessEvent(Func, nullptr);
-			return ECallFuncResult::CallFunc_Success;
+			if (Func->NumParms == 0)
+			{
+				Object->ProcessEvent(Func, nullptr);
+				return ECallFuncResult::CallFunc_Success;
+			}
+			return ECallFuncResult::CallFunc_ParamMismatch;
 		}
 		return ECallFuncResult::CallFunc_NoFunc;
 	}
@@ -36,7 +20,7 @@ ECallFuncResult UCallFuncNodeLibrary::CallNodeFunc_Generic(UObject* Object, FNam
 
 ECallFuncResult UCallFuncNodeLibrary::CallNodeFunc_Params(UObject* Object, FName Name, TArray<FCallFuncParameter>& Properties)
 {
-	if (Object)
+	if (Object && Object->IsValidLowLevel())
 	{
 		if (UFunction* Func = Object->FindFunction(Name))
 		{
@@ -69,11 +53,6 @@ ECallFuncResult UCallFuncNodeLibrary::CallNodeFunc_Params(UObject* Object, FName
 					if (!Property.Property->IsA(FuncProperty->GetClass()))
 					{
 						// mismatch
-						DeleteTempAllocs();
-						FFrame::KismetExecutionMessage(*FString::Printf(TEXT("CallFuncNode: Attempted to call Function %s but parameters do not match!"),
-							*Func->GetFName().ToString()),
-							ELogVerbosity::Error,
-							FName(TEXT("FunctionParameterMismatch")));
 						return ECallFuncResult::CallFunc_ParamMismatch;
 					}
 
@@ -91,17 +70,12 @@ ECallFuncResult UCallFuncNodeLibrary::CallNodeFunc_Params(UObject* Object, FName
 				}
 
 				Object->ProcessEvent(Func, Memory);
-				DeleteTempAllocs();
 
 				return ECallFuncResult::CallFunc_Success;
 			}
 			else
 			{
 				// mismatch
-				FFrame::KismetExecutionMessage(*FString::Printf(TEXT("CallFuncNode: Attempted to call Function %s but parameters do not match!"),
-					*Func->GetFName().ToString()),
-					ELogVerbosity::Error,
-					FName(TEXT("FunctionParameterMismatch")));
 				return ECallFuncResult::CallFunc_ParamMismatch;
 			}
 		}

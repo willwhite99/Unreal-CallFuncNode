@@ -46,9 +46,7 @@ void UK2Node_CallFunc::AllocateDefaultPins()
 	CreatePin(EGPD_Input, UEdGraphSchema_K2::PC_Name, NamePinName);
 	UEdGraphPin* OutPin = CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Exec, UEdGraphSchema_K2::PN_Then);
 	OutPin->PinFriendlyName = FText();
-	UEdGraphPin* OutResult = CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Byte, ResultPinName);
-	OutResult->PinType.PinSubCategory = FName(TEXT("ECallFuncResult"));
-	OutResult->PinType.PinSubCategoryObject = FindObject<UEnum>(ANY_PACKAGE, TEXT("ECallFuncResult"), true);
+	UEdGraphPin* OutResult = CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Byte, FindObject<UEnum>(ANY_PACKAGE, TEXT("ECallFuncResult"), true), ResultPinName);
 
 	for (int32 i = 0; i < NumOptionPins && i < Entries.Num(); i++)
 	{
