@@ -6,12 +6,12 @@
 	"Description": "Simple node that allows you to call a function by name.",
 	"Category": "Blueprints",
 	"CreatedBy": "Killermud",
-	"CreatedByURL": "",
+	"CreatedByURL": "https://github.com/willwhite99/Unreal-CallFuncNode",
 	"SupportURL": "",
 	"CanContainContent": false,
 	"IsBetaVersion": false,
 	"IsExperimentalVersion": false,
-	"Installed": true,
+	"Installed": false,
 	"Modules": [
 		{
 			"Name": "CallFuncNode",
