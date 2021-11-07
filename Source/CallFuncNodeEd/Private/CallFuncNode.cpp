@@ -5,11 +5,14 @@
 #include "BlueprintActionDatabaseRegistrar.h"
 #include "BlueprintNodeSpawner.h"
 
+// define our custom pin names
 static const FName ObjectPinName = FName(TEXT("Object"));
 static const FName NamePinName = FName(TEXT("Name"));
 static const FName ResultPinName = FName(TEXT("Result"));
 
 #define LOCTEXT_NAMESPACE "CallFuncNode"
+// the offset in pins for the start of the option pins
+#define OPTION_PINS_OFFSET 5
 
 static const TCHAR* SlotNames[5] = {
 	TEXT("A"),
@@ -19,6 +22,7 @@ static const TCHAR* SlotNames[5] = {
 	TEXT("E")
 };
 
+// function names in UCallFuncNodeLibrary, must match!
 static const FName FunNames[6] = {
 	FName(TEXT("CallNodeFunc_Internal")),
 	FName(TEXT("CallNodeFuncOneParam_Internal")),
@@ -39,15 +43,21 @@ void UK2Node_CallFunc::AllocateDefaultPins()
 
 	bReconstructNode = false;
 
+	// input exec pin
 	UEdGraphPin* InPin = CreatePin(EGPD_Input, UEdGraphSchema_K2::PC_Exec, UEdGraphSchema_K2::PN_Execute);
 	InPin->PinFriendlyName = FText();
+	// input object pin
 	UEdGraphPin* ObjPin = CreatePin(EGPD_Input, UEdGraphSchema_K2::PC_Object, ObjectPinName);
 	ObjPin->PinType.PinSubCategoryObject = UObject::StaticClass();
+	// input name pin
 	CreatePin(EGPD_Input, UEdGraphSchema_K2::PC_Name, NamePinName);
+	// output exec pin
 	UEdGraphPin* OutPin = CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Exec, UEdGraphSchema_K2::PN_Then);
 	OutPin->PinFriendlyName = FText();
+	// output result
 	UEdGraphPin* OutResult = CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Byte, FindObject<UEnum>(ANY_PACKAGE, TEXT("ECallFuncResult"), true), ResultPinName);
 
+	// all parameter pins
 	for (int32 i = 0; i < NumOptionPins && i < Entries.Num(); i++)
 	{
 		UEdGraphPin* Pin = CreatePin(EGPD_Input, UEdGraphSchema_K2::PC_Wildcard, Entries[i]);
@@ -70,7 +80,7 @@ void UK2Node_CallFunc::ReallocatePinsDuringReconstruction(TArray<UEdGraphPin*>& 
 	Super::ReallocatePinsDuringReconstruction(OldPins);
 
 	TArray<UEdGraphPin*> OptionPins;
-	for (int32 i = 5; i < Pins.Num() && i < OldPins.Num(); i++)
+	for (int32 i = OPTION_PINS_OFFSET; i < Pins.Num() && i < OldPins.Num(); i++)
 	{
 		Pins[i]->PinType = OldPins[i]->PinType;
 	}
@@ -219,8 +229,7 @@ void UK2Node_CallFunc::ExpandNode(class FKismetCompilerContext& CompilerContext,
 
 	const UEdGraphSchema_K2* Schema = CompilerContext.GetSchema();
 
-	// The call function does all the real work, each child class implementing easing for  a given type provides
-	// the name of the desired function
+	// The call function does all the real work of actually calling our input function
 	UK2Node_CallFunction* CallFunction = CompilerContext.SpawnIntermediateNode<UK2Node_CallFunction>(this, SourceGraph);
 
 	CallFunction->SetFromFunction(Function);
@@ -228,6 +237,7 @@ void UK2Node_CallFunc::ExpandNode(class FKismetCompilerContext& CompilerContext,
 	UEdGraphPin *OutPin = CallFunction->FindPinChecked(UEdGraphSchema_K2::PN_ReturnValue);
 	CompilerContext.MessageLog.NotifyIntermediateObjectCreation(CallFunction, this);
 
+	// move all the pins from our node to the call function node (matching the UCallFuncNodeLibrary functions)
 	CompilerContext.MovePinLinksToIntermediate(*FindPin(ObjectPinName), *CallFunction->FindPin(TEXT("Object")));
 	CompilerContext.MovePinLinksToIntermediate(*FindPin(NamePinName), *CallFunction->FindPin(TEXT("Name")));
 	CompilerContext.MovePinLinksToIntermediate(*FindPin(ResultPinName), *OutPin);
@@ -235,6 +245,7 @@ void UK2Node_CallFunc::ExpandNode(class FKismetCompilerContext& CompilerContext,
 	CompilerContext.MovePinLinksToIntermediate(*FindPin(UEdGraphSchema_K2::PN_Execute), *CallFunction->FindPin(UEdGraphSchema_K2::PN_Execute));
 	CompilerContext.MovePinLinksToIntermediate(*FindPin(UEdGraphSchema_K2::PN_Then), *CallFunction->FindPin(UEdGraphSchema_K2::PN_Then));
 
+	// move all the parameter pins
 	for (int32 i = 0; i < NumOptionPins; i++)
 	{
 		UEdGraphPin* SrcPin = FindPin(FName(SlotNames[i]));
@@ -250,7 +261,7 @@ void UK2Node_CallFunc::GetOptionsPins(TArray<UEdGraphPin*>& OutPins)
 {
 	OutPins.Reset();
 
-	for (int32 i = 5; i < Pins.Num(); i++)
+	for (int32 i = OPTION_PINS_OFFSET; i < Pins.Num(); i++)
 	{
 		OutPins.Add(Pins[i]);
 	}

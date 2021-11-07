@@ -12,12 +12,18 @@ enum ECallFuncResult
 	CallFunc_InvalidObj UMETA(DisplayName = "Invalid Object")
 };
 
+/*
+* Blueprint library for the CallFuncNode plugin
+*/
 UCLASS()
 class CALLFUNCNODE_API UCallFuncNodeLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
 
 public:
+	/*
+	* Function declarations, all marked as CustomThunk as we need to parse the inputs manually
+	*/
 	UFUNCTION(BlueprintCallable, CustomThunk, meta=(BlueprintInternalUseOnly="true"))
 		static ECallFuncResult CallNodeFunc_Internal(UObject* Object, FName Name);
 	DECLARE_FUNCTION(execCallNodeFunc_Internal);
@@ -48,8 +54,12 @@ public:
 		void* Memory;
 	};
 
+	// Function for calling a named function with no parameters
 	static ECallFuncResult CallNodeFunc_Generic(UObject* Object, FName Name);
+	// Function for calling a named function with parameters, using FCallFuncParameter to define the parameters
 	static ECallFuncResult CallNodeFunc_Params(UObject* Object, FName Name, TArray<FCallFuncParameter>& Properties);
+	// Copy a FCallFuncParameter to memory, this parses the property into it's actual memory
 	static void CopyToMemory(uint8*& Memory, FCallFuncParameter Parameter, bool bPad = true);
+	// Copy a struct to memory, no longer used but can be used for debugging purposes
 	static void CopyToMemory_Struct(uint8*& Memory, FCallFuncParameter Parameter);
 };

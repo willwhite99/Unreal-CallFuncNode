@@ -33,18 +33,21 @@ ECallFuncResult UCallFuncNodeLibrary::CallNodeFunc_Params(UObject* Object, FName
 					TotalMemory += 8;
 				else
 				{
+					// all parameters need to be padded to 4 bytes
 					int32 Size = Property.Property->ElementSize * Property.Property->ArrayDim;
 					int32 Alignment = Size % 4;
 					TotalMemory += Size + (Alignment == 0 ? 0 : (4 - Alignment)); // pad to 4 bytes
 				}
 			}
 
+			// check if theres a mismatch between our input memory or the num properties
 			if (Func->NumParms == Properties.Num() && Func->ParmsSize == TotalMemory)
 			{
 				uint8* Memory = (uint8*)FMemory_Alloca(TotalMemory);
 				FMemory::Memzero(Memory, TotalMemory);
 				uint8* MemoryPtr = Memory;
 
+				// copy each parameter to our chunk of memory
 				FField* FuncProperty = Func->ChildProperties;
 				for (int32 i = 0; i < Properties.Num(); i++)
 				{
@@ -69,6 +72,7 @@ ECallFuncResult UCallFuncNodeLibrary::CallNodeFunc_Params(UObject* Object, FName
 					FuncProperty = FuncProperty->Next;
 				}
 
+				// finally call the function with the parameter memory
 				Object->ProcessEvent(Func, Memory);
 
 				return ECallFuncResult::CallFunc_Success;
@@ -86,48 +90,44 @@ ECallFuncResult UCallFuncNodeLibrary::CallNodeFunc_Params(UObject* Object, FName
 	return ECallFuncResult::CallFunc_InvalidObj;
 }
 
+// All our declared function definitions that don't get used, still need to define to avoid NoExport on the class
 ECallFuncResult UCallFuncNodeLibrary::CallNodeFunc_Internal(UObject* Object, FName Name)
 {
-	// We should never hit this! Stubbed to avoid NoExport on the class.
 	check(0);
 	return ECallFuncResult::CallFunc_InvalidObj;
 }
 
 ECallFuncResult UCallFuncNodeLibrary::CallNodeFuncOneParam_Internal(UObject* Object, FName Name, TFieldPath<FProperty> A)
 {
-	// We should never hit this! Stubbed to avoid NoExport on the class.
 	check(0);
 	return ECallFuncResult::CallFunc_InvalidObj;
 }
 
 ECallFuncResult UCallFuncNodeLibrary::CallNodeFuncTwoParam_Internal(UObject* Object, FName Name, TFieldPath<FProperty> A, TFieldPath<FProperty> B)
 {
-	// We should never hit this! Stubbed to avoid NoExport on the class.
 	check(0);
 	return ECallFuncResult::CallFunc_InvalidObj;
 }
 
 ECallFuncResult UCallFuncNodeLibrary::CallNodeFuncThreeParam_Internal(UObject* Object, FName Name, TFieldPath<FProperty> A, TFieldPath<FProperty> B, TFieldPath<FProperty> C)
 {
-	// We should never hit this! Stubbed to avoid NoExport on the class.
 	check(0);
 	return ECallFuncResult::CallFunc_InvalidObj;
 }
 
 ECallFuncResult UCallFuncNodeLibrary::CallNodeFuncFourParam_Internal(UObject* Object, FName Name, TFieldPath<FProperty> A, TFieldPath<FProperty> B, TFieldPath<FProperty> C, TFieldPath<FProperty> D)
 {
-	// We should never hit this! Stubbed to avoid NoExport on the class.
 	check(0);
 	return ECallFuncResult::CallFunc_InvalidObj;
 }
 
 ECallFuncResult UCallFuncNodeLibrary::CallNodeFuncFiveParam_Internal(UObject* Object, FName Name, TFieldPath<FProperty> A, TFieldPath<FProperty> B, TFieldPath<FProperty> C, TFieldPath<FProperty> D, TFieldPath<FProperty> E)
 {
-	// We should never hit this! Stubbed to avoid NoExport on the class.
 	check(0);
 	return ECallFuncResult::CallFunc_InvalidObj;
 }
 
+// helper function to get the properties from the blueprint stack
 FORCEINLINE void ParseInputs(TArray<UCallFuncNodeLibrary::FCallFuncParameter>& InOutParams, FFrame& Stack, int32 ParamNum)
 {
 	for (int32 i = 0; i < ParamNum; i++)
@@ -141,6 +141,9 @@ FORCEINLINE void ParseInputs(TArray<UCallFuncNodeLibrary::FCallFuncParameter>& I
 	}
 }
 
+/*
+* All our functions CustomThunk implementations
+*/
 DEFINE_FUNCTION(UCallFuncNodeLibrary::execCallNodeFunc_Internal)
 {
 	P_GET_OBJECT(UObject, Object);
@@ -231,6 +234,7 @@ DEFINE_FUNCTION(UCallFuncNodeLibrary::execCallNodeFuncFiveParam_Internal)
 	P_NATIVE_END;
 }
 
+// Ensure all memory is padded to 4 bytes
 FORCEINLINE int32 MemPadding(int32 InSize)
 {
 	int32 Alignment = InSize % 4;
@@ -245,6 +249,9 @@ void UCallFuncNodeLibrary::CopyToMemory(uint8*& MemoryPtr, FCallFuncParameter Pr
 		int32 ArrayNum;
 		int32 ArrayMax;
 	};
+
+	// Simply check what type of property the input is and call specific functions to get the
+	// memory/value and then copy it to our buffer
 
 	if (FNumericProperty *NumericProperty = CastField<FNumericProperty>(Property.Property))
 	{
@@ -305,6 +312,7 @@ void UCallFuncNodeLibrary::CopyToMemory(uint8*& MemoryPtr, FCallFuncParameter Pr
 	MemoryPtr += bPad ? MemPadding(Property.Property->ElementSize) : Property.Property->ElementSize;
 }
 
+// No longer used function, but useful for debugging
 void UCallFuncNodeLibrary::CopyToMemory_Struct(uint8*& Memory, FCallFuncParameter Parameter)
 {
 	FStructProperty* Struct = CastField<FStructProperty>(Parameter.Property);

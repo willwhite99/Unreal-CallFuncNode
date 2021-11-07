@@ -11,6 +11,9 @@
 #include "K2Node_AddPinInterface.h"
 #include "CallFuncNode.generated.h"
 
+/*
+* Custom editor node for CallFuncNode
+*/
 UCLASS(MinimalAPI)
 class UK2Node_CallFunc : public UK2Node, public IK2Node_AddPinInterface
 {
