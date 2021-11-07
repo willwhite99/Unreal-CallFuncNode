@@ -6,6 +6,7 @@ Simple blueprint node that allows calling a function on an object by it's name. 
 
 # Installing from source
 Download the repo as a zip or download a release with prebuilt binaries, and extract it under your project Plugins folder so you have YourProject/Plugins/CallFuncNode/CallFuncNode.uplugin
+
 Afterwards you will need to enable the plugin from the Plugins window.
 
 Currently only have binaries for 4.27.1 (not test on 4.27.0), other versions will require building manually.
