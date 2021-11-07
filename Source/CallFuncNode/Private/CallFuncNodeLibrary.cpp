@@ -286,6 +286,11 @@ void UCallFuncNodeLibrary::CopyToMemory(uint8*& MemoryPtr, FCallFuncParameter Pr
 		UObject* Obj = ObjectProperty->GetPropertyValue(Property.Memory);
 		FMemory::Memcpy(MemoryPtr, &Obj, Property.Property->ElementSize);
 	}
+	else if (FSoftObjectProperty* SoftObject = CastField<FSoftObjectProperty>(Property.Property))
+	{
+		FSoftObjectPtr Obj = SoftObject->GetPropertyValue(Property.Memory);
+		FMemory::Memcpy(MemoryPtr, &Obj, Property.Property->ElementSize);
+	}
 	else if (FStrProperty* StringProperty = CastField<FStrProperty>(Property.Property))
 	{
 		FString* StrValue = StringProperty->GetPropertyValuePtr(Property.Memory);
@@ -304,11 +309,26 @@ void UCallFuncNodeLibrary::CopyToMemory(uint8*& MemoryPtr, FCallFuncParameter Pr
 		
 		FMemory::Memcpy(MemoryPtr, &Arr, sizeof(FArrayTypeBasic));
 	}
+	else if (FSetProperty* SetProperty = CastField<FSetProperty>(Property.Property))
+	{
+		FScriptSet* ScriptSet = SetProperty->GetPropertyValuePtr(Property.Memory);
+		FMemory::Memcpy(MemoryPtr, ScriptSet, sizeof(FScriptSet));
+	}
+	else if (FMapProperty* MapProperty = CastField<FMapProperty>(Property.Property))
+	{
+		FScriptMap* ScriptMap = MapProperty->GetPropertyValuePtr(Property.Memory);
+		FMemory::Memcpy(MemoryPtr, ScriptMap, sizeof(FScriptMap));
+	}
 	else if (FStructProperty* StructProperty = CastField<FStructProperty>(Property.Property))
 	{
 		StructProperty->CopyValuesInternal(MemoryPtr, Property.Memory, 1);
 	}
-
+	else if (FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property.Property))
+	{
+		FCallFuncParameter EnumParameter = { EnumProperty->GetUnderlyingProperty(), Property.Memory };
+		CopyToMemory(MemoryPtr, EnumParameter, false);
+	}
+	
 	MemoryPtr += bPad ? MemPadding(Property.Property->ElementSize) : Property.Property->ElementSize;
 }
 

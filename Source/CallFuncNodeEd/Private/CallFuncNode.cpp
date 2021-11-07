@@ -2,6 +2,7 @@
 #include "CallFuncNodeLibrary.h"
 #include "KismetCompiler.h"
 #include "K2Node_CallFunction.h"
+#include "K2Node_Literal.h"
 #include "BlueprintActionDatabaseRegistrar.h"
 #include "BlueprintNodeSpawner.h"
 
@@ -47,24 +48,42 @@ void UK2Node_CallFunc::AllocateDefaultPins()
 	UEdGraphPin* InPin = CreatePin(EGPD_Input, UEdGraphSchema_K2::PC_Exec, UEdGraphSchema_K2::PN_Execute);
 	InPin->PinFriendlyName = FText();
 	// input object pin
-	UEdGraphPin* ObjPin = CreatePin(EGPD_Input, UEdGraphSchema_K2::PC_Object, ObjectPinName);
-	ObjPin->PinType.PinSubCategoryObject = UObject::StaticClass();
+	ObjectPin = CreatePin(EGPD_Input, UEdGraphSchema_K2::PC_Object, ObjectPinName);
+	ObjectPin->PinType.PinSubCategoryObject = UObject::StaticClass();
 	// input name pin
-	CreatePin(EGPD_Input, UEdGraphSchema_K2::PC_Name, NamePinName);
+	NamePin = CreatePin(EGPD_Input, UEdGraphSchema_K2::PC_Name, NamePinName);
 	// output exec pin
 	UEdGraphPin* OutPin = CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Exec, UEdGraphSchema_K2::PN_Then);
 	OutPin->PinFriendlyName = FText();
 	// output result
 	UEdGraphPin* OutResult = CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Byte, FindObject<UEnum>(ANY_PACKAGE, TEXT("ECallFuncResult"), true), ResultPinName);
 
-	// all parameter pins
-	for (int32 i = 0; i < NumOptionPins && i < Entries.Num(); i++)
+	if (NumOptionPins > 0)
 	{
-		UEdGraphPin* Pin = CreatePin(EGPD_Input, UEdGraphSchema_K2::PC_Wildcard, Entries[i]);
+		// all parameter pins
+		for (int32 i = 0; i < NumOptionPins && i < Entries.Num(); i++)
+		{
+			UEdGraphPin* Pin = CreatePin(EGPD_Input, UEdGraphSchema_K2::PC_Wildcard, Entries[i]);
 
-		if (!EntryFriendlyNames.IsValidIndex(i))
-			EntryFriendlyNames.Add(FTextStringHelper::CreateFromBuffer(SlotNames[i]));
-		Pin->PinFriendlyName = EntryFriendlyNames[i];
+			if (!EntryFriendlyNames.IsValidIndex(i))
+				EntryFriendlyNames.Add(FTextStringHelper::CreateFromBuffer(SlotNames[i]));
+			Pin->PinFriendlyName = EntryFriendlyNames[i];
+		}
+	}
+	else
+	{
+		for (int32 i = 0; i < AutoPins.Num(); i++)
+		{
+			UEdGraphPin* Pin = CreatePin(EGPD_Input, AutoPins[i].NormalType.Type, AutoPins[i].Name);
+			Pin->PinType.PinSubCategoryObject = AutoPins[i].NormalType.SubType;
+			Pin->PinType.ContainerType = AutoPins[i].ContainerType;
+			if (AutoPins[i].ContainerType == EPinContainerType::Map)
+			{
+				// need additional data
+				Pin->PinType.PinValueType.TerminalCategory = AutoPins[i].TerminalType.Type;
+				Pin->PinType.PinValueType.TerminalSubCategoryObject = AutoPins[i].TerminalType.SubType;
+			}
+		}
 	}
 }
 
@@ -73,6 +92,149 @@ void UK2Node_CallFunc::PostReconstructNode()
 	Super::PostReconstructNode();
 
 	bReconstructNode = false;
+}
+
+FCallFuncAutoParameter::PinType UK2Node_CallFunc::GetParameterInfo(FField* Parameter, FName& OutType, UObject*& OutSubType, EPinContainerType& OutContainerType)
+{
+	FCallFuncAutoParameter::PinType OutPinType;
+
+	// find specific property type, then assign correct type data
+	if (FNumericProperty *NumericProperty = CastField<FNumericProperty>(Parameter))
+	{
+		if (FByteProperty* ByteProperty = CastField<FByteProperty>(NumericProperty))
+		{
+			OutPinType.Type = UEdGraphSchema_K2::PC_Byte;
+			OutPinType.SubType = ByteProperty->Enum;
+		}
+		else if (NumericProperty->IsFloatingPoint())
+		{
+			OutPinType.Type = UEdGraphSchema_K2::PC_Float;
+		}
+		else if (NumericProperty->IsInteger())
+		{
+			// int64 vs normal int
+			OutPinType.Type = NumericProperty->HasAllCastFlags(CASTCLASS_FInt64Property) ? UEdGraphSchema_K2::PC_Int64 : UEdGraphSchema_K2::PC_Int;
+		}
+	}
+	else if (FBoolProperty* Bool = CastField<FBoolProperty>(Parameter))
+	{
+		OutPinType.Type = UEdGraphSchema_K2::PC_Boolean;
+	}
+	else if (FNameProperty* NameProperty = CastField<FNameProperty>(Parameter))
+	{
+		OutPinType.Type = UEdGraphSchema_K2::PC_Name;
+	}
+	else if (FTextProperty* TextProperty = CastField<FTextProperty>(Parameter))
+	{
+		OutPinType.Type = UEdGraphSchema_K2::PC_Text;
+	}
+	else if (FClassProperty* ClassProperty = CastField<FObjectProperty>(Parameter))
+	{
+		OutPinType.Type = UEdGraphSchema_K2::PC_Class;
+		OutPinType.SubType = ClassProperty->PropertyClass;
+	}
+	else if (FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Parameter))
+	{
+		OutPinType.Type = UEdGraphSchema_K2::PC_Object;
+		OutPinType.SubType = ObjectProperty->PropertyClass;
+	}
+	else if (FSoftClassProperty* SoftClass = CastField<FSoftClassProperty>(Parameter))
+	{
+		OutPinType.Type = UEdGraphSchema_K2::PC_SoftClass;
+		OutPinType.SubType = SoftClass->MetaClass;
+	}
+	else if (FSoftObjectProperty* SoftObject = CastField<FSoftObjectProperty>(Parameter))
+	{
+		OutPinType.Type = UEdGraphSchema_K2::PC_SoftObject;
+		OutPinType.SubType = SoftObject->PropertyClass;
+	}
+	else if (FStrProperty* StringProperty = CastField<FStrProperty>(Parameter))
+	{
+		OutPinType.Type = UEdGraphSchema_K2::PC_String;
+	}
+	else if (FArrayProperty* ArrProperty = CastField<FArrayProperty>(Parameter))
+	{
+		OutPinType = GetParameterInfo(ArrProperty->Inner, OutPinType.Type, OutPinType.SubType, OutContainerType);
+		OutContainerType = EPinContainerType::Array;
+	}
+	else if (FSetProperty* SetProperty = CastField<FSetProperty>(Parameter))
+	{
+		OutPinType = GetParameterInfo(SetProperty->ElementProp, OutPinType.Type, OutPinType.SubType, OutContainerType);
+		OutContainerType = EPinContainerType::Set;
+	}
+	else if (FMapProperty* MapProperty = CastField<FMapProperty>(Parameter))
+	{
+		OutPinType = GetParameterInfo(MapProperty->KeyProp, OutType, OutSubType, OutContainerType);
+		FCallFuncAutoParameter::PinType ValueType = GetParameterInfo(MapProperty->ValueProp, OutType, OutSubType, OutContainerType);
+		OutType = ValueType.Type;
+		OutSubType = ValueType.SubType;
+		OutContainerType = EPinContainerType::Map;
+	}
+	else if (FStructProperty* StructProperty = CastField<FStructProperty>(Parameter))
+	{
+		OutPinType.Type = UEdGraphSchema_K2::PC_Struct;
+		OutPinType.SubType = StructProperty->Struct;
+	}
+	// this might not be used anymore, but worth checking, just incase
+	else if (FEnumProperty* EnumProperty = CastField<FEnumProperty>(Parameter))
+	{
+		OutPinType.Type = UEdGraphSchema_K2::PC_Byte;
+		OutPinType.SubType = EnumProperty->GetEnum();
+	}
+
+	return OutPinType;
+}
+
+void UK2Node_CallFunc::PinDefaultValueChanged(UEdGraphPin* Pin)
+{
+	Super::PinDefaultValueChanged(Pin);
+
+	if (Pin == NamePin && NumOptionPins == 0)
+	{
+		// get object pin, check if we can evaluate it easily, and if we can find
+		// the function associated with that object, then reallocate the pins
+		bool bSuccess = false;
+		if (ObjectPin->LinkedTo.Num() == 1)
+		{
+			UFunction* Func = nullptr;
+			UEdGraphPin* OtherPin = ObjectPin->LinkedTo[0];
+			// try and find type via the pin itself
+			UObject* OtherPinType = OtherPin->PinType.PinSubCategoryObject.Get();
+			// the pin sub category object may be a class, in which case use that to find func
+			if (UClass* OtherPinClass = Cast<UClass>(OtherPinType))
+				Func = OtherPinClass->FindFunctionByName(FName(Pin->DefaultValue));
+			else
+				Func = OtherPinType->FindFunction(FName(Pin->DefaultValue));
+
+			if (Func != nullptr)
+			{
+				// found it! parse the parameters and reset the pins
+				AutoPins.Reset(Func->NumParms);
+				FField* Parameter = Func->ChildProperties;
+				for (int32 i = 0; i < Func->NumParms; i++)
+				{
+					FCallFuncAutoParameter AutoParameter;
+					AutoParameter.Name = Parameter->NamePrivate;
+					// determine type
+					AutoParameter.NormalType = GetParameterInfo(Parameter, AutoParameter.TerminalType.Type,
+						AutoParameter.TerminalType.SubType, AutoParameter.ContainerType);
+
+					AutoPins.Add(AutoParameter);
+					Parameter = Parameter->Next;
+				}
+
+				bSuccess = true;
+			}
+		}
+
+		// if no function found, revert back
+		if (!bSuccess)
+		{
+			AutoPins.Reset(0);
+		}
+
+		ReconstructNode();
+	}
 }
 
 void UK2Node_CallFunc::ReallocatePinsDuringReconstruction(TArray<UEdGraphPin*>& OldPins)
@@ -246,7 +408,8 @@ void UK2Node_CallFunc::ExpandNode(class FKismetCompilerContext& CompilerContext,
 	CompilerContext.MovePinLinksToIntermediate(*FindPin(UEdGraphSchema_K2::PN_Then), *CallFunction->FindPin(UEdGraphSchema_K2::PN_Then));
 
 	// move all the parameter pins
-	for (int32 i = 0; i < NumOptionPins; i++)
+	int32 PinCount = FMath::Max(NumOptionPins, AutoPins.Num());
+	for (int32 i = 0; i < PinCount; i++)
 	{
 		UEdGraphPin* SrcPin = FindPin(FName(SlotNames[i]));
 		UEdGraphPin* FuncPin = CallFunction->FindPin(SlotNames[i]);

@@ -11,6 +11,34 @@
 #include "K2Node_AddPinInterface.h"
 #include "CallFuncNode.generated.h"
 
+struct FCallFuncAutoParameter
+{
+	FName Name;
+	EPinContainerType ContainerType;
+
+	struct PinType
+	{
+		FName Type;
+		UObject* SubType;
+
+		PinType()
+			: Type(NAME_None)
+			, SubType(nullptr)
+		{
+		}
+	};
+
+	PinType NormalType;
+	// used for maps
+	PinType TerminalType;
+
+	FCallFuncAutoParameter()
+		: Name(NAME_None)
+		, ContainerType(EPinContainerType::None)
+	{
+	}
+};
+
 /*
 * Custom editor node for CallFuncNode
 */
@@ -40,10 +68,17 @@ public:
 	UPROPERTY(Transient)
 		uint8 bReconstructNode : 1;
 
+	UEdGraphPin* ObjectPin;
+	UEdGraphPin* NamePin;
+
+	// array of pins that we want to be auto-generated
+	TArray<FCallFuncAutoParameter> AutoPins;
+
 	virtual void AddInputPin() override;
 	virtual void ExpandNode(class FKismetCompilerContext& CompilerContext, UEdGraph* SourceGraph) override;
 	virtual void AllocateDefaultPins() override;
 	virtual void PostReconstructNode() override;
+	virtual void PinDefaultValueChanged(UEdGraphPin* Pin) override;
 
 	virtual void ReallocatePinsDuringReconstruction(TArray<UEdGraphPin*>& OldPins) override;
 	virtual void GetMenuActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const override;
@@ -57,4 +92,7 @@ public:
 	virtual FText GetMenuCategory() const { return FText::FromString(TEXT("Utilities")); }
 
 	void GetOptionsPins(TArray<UEdGraphPin*>& Pins);
+
+private:
+	FCallFuncAutoParameter::PinType GetParameterInfo(FField* Parameter, FName& OutType, UObject*& OutSubType, EPinContainerType& OutContainer);
 };
