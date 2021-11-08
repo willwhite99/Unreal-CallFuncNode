@@ -128,7 +128,7 @@ FCallFuncAutoParameter::PinType UK2Node_CallFunc::GetParameterInfo(FField* Param
 	{
 		OutPinType.Type = UEdGraphSchema_K2::PC_Text;
 	}
-	else if (FClassProperty* ClassProperty = CastField<FObjectProperty>(Parameter))
+	else if (FClassProperty* ClassProperty = CastField<FClassProperty>(Parameter))
 	{
 		OutPinType.Type = UEdGraphSchema_K2::PC_Class;
 		OutPinType.SubType = ClassProperty->PropertyClass;
