@@ -1,8 +1,8 @@
 # Unreal Call Function Node
 
-Simple blueprint node that allows calling a function on an object by it's name. Currently does not support return types.
+Simple blueprint node that allows calling a function on an object by it's name. Currently does not support return types, supports upto 5 parameters.
 
-![CallFuncExample](https://user-images.githubusercontent.com/9076286/140607568-b95ff235-8d12-4041-b6b4-4c350e75c6a4.png)
+![node](https://user-images.githubusercontent.com/9076286/141024509-8bf44e3c-88a2-4572-a3c2-4ada5ce55d26.gif)
 
 # Installing from source
 Download the repo as a zip or download a release with prebuilt binaries, and extract it under your project Plugins folder so you have YourProject/Plugins/CallFuncNode/CallFuncNode.uplugin
