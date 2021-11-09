@@ -61,7 +61,7 @@ ECallFuncResult UCallFuncNodeLibrary::CallNodeFunc_Params(UObject* Object, FName
 
 					if (Property.Property == nullptr)
 					{
-						FMemory::Memcpy(MemoryPtr, &Object, sizeof(8));
+						FMemory::Memcpy(MemoryPtr, &Object, sizeof(void*));
 						MemoryPtr += 8;
 					}
 					else
